@@ -1,35 +1,34 @@
-node_modules/
-dist/
-build/
-
-.env
-.env.local
-.env.production
-
-auth_info/
-server/auth_info/
-server/.env
-.env
-*.log
-
-.vscode/
-.idea/
-
 # Environment
 .env
 server/.env
 
-# SQLite temp files
-*.db-wal
+# Database
+*.db
 *.db-shm
+*.db-wal
+
+# WhatsApp Session
+whatsapp-auth/
+server/whatsapp-auth/
+auth_info/
+server/auth_info/
 
 # Node
 node_modules/
 
-# WhatsApp Session
-auth_info/
-server/auth_info/
-
 # Build
 dist/
 build/
+
+# IDE
+.vscode/
+.idea/
+
+# Database
+server/database/*.db
+server/database/*.db-shm
+server/database/*.db-wal
+
+# WhatsApp Session
+server/whatsapp-auth/
+
