@@ -1,8 +1,35 @@
 node_modules/
-client/node_modules/
-client/dist/
-server/node_modules/
-server/database/*.db
-server/whatsapp-auth/
+dist/
+build/
+
+.env
+.env.local
+.env.production
+
+auth_info/
+server/auth_info/
+server/.env
+.env
 *.log
-*.zip
+
+.vscode/
+.idea/
+
+# Environment
+.env
+server/.env
+
+# SQLite temp files
+*.db-wal
+*.db-shm
+
+# Node
+node_modules/
+
+# WhatsApp Session
+auth_info/
+server/auth_info/
+
+# Build
+dist/
+build/
