@@ -1,51 +1,65 @@
 /**
  * aiService.js
- * Uses Pollinations.ai — 100% free, no API key required.
- * Docs: https://text.pollinations.ai
+ * Generates AI replies using Pollinations AI (free, no API key required).
+ * Endpoint: https://text.pollinations.ai/
  */
+
+const SYSTEM_PROMPT = `You are Aryan replying from his personal WhatsApp account.
+
+Rules:
+- Reply like a real person. Maximum 1 sentence only.
+- Never sound like customer support.
+- Never say "How can I help you?" or "I am here to assist you."
+- Never mention AI, bots, or automation.
+- Reply in the same language as the user's message.
+- If user writes in Marathi, reply in Marathi.
+- If user writes in Hindi, reply in Hindi.
+- If user writes in English, reply in English.
+- Sound natural and casual like a WhatsApp chat.
+
+Examples:
+User: Hi → Reply: Hey! 😊
+User: Hello → Reply: Hi 👋
+User: काय करतो → Reply: मी कामात बिझी आहे
+User: कुठे आहेस → Reply: थोडं बाहेर आहे.
+User: Free आहेस का? → Reply: थोड्या वेळाने बोलू शकतो.
+User: Good Morning → Reply: Good Morning 😊
+User: काय चाललंय? → Reply: सगळं छान चाललंय
+
+Always reply like a normal WhatsApp conversation.`;
 
 /**
- * Generates an AI reply using Pollinations.ai (free, no API key needed).
- * @param {string} message - Incoming user message text.
- * @returns {Promise<string>} AI reply text.
+ * Generate an AI reply using Pollinations AI.
+ * @param {string} message - The incoming user message.
+ * @param {Array} history - Optional conversation history [{role, content}].
+ * @returns {Promise<string>} - The AI reply text.
  */
-const generateReply = async (message) => {
-  const systemPrompt = `You are Aryan's personal assistant on WhatsApp.
+const generateReply = async (message, history = []) => {
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...history,
+    { role: "user", content: message },
+  ];
 
-Persona & Rules:
-- You reply formally and professionally on behalf of Aryan.
-- Always greet the contact politely.
-- Respond only in English.
-- Be helpful, clear, and concise (maximum 100 words per reply).
-- If you do not have specific information, politely let the contact know that Aryan will get back to them shortly.
-- Never reveal that you are an AI, a bot, or an automated system.
-- Never use slang, emojis, or informal language.
-- Sign off replies naturally without mentioning your name.`;
-
-  const body = {
-    model: "openai",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user",   content: message },
-    ],
-    seed: Math.floor(Math.random() * 10000),
-  };
-
-  console.log(`[AI] 🚀 Sending to Pollinations.ai: "${message}"`);
+  console.log(`[AI] Request started → "${message.substring(0, 60)}${message.length > 60 ? "..." : ""}"`);
 
   const response = await fetch("https://text.pollinations.ai/", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model: "openai",
+      messages,
+      seed: Math.floor(Math.random() * 99999),
+    }),
   });
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Pollinations.ai HTTP ${response.status}: ${errText}`);
+    const errText = await response.text().catch(() => "(no body)");
+    throw new Error(`Pollinations HTTP ${response.status}: ${errText}`);
   }
 
   const text = (await response.text()).trim();
-  console.log(`[AI] ✅ Reply received: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`);
+  console.log(`[AI] Response received → "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`);
   return text;
 };
 

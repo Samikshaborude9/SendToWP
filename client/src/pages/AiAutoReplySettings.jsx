@@ -6,6 +6,7 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  Chip,
   Divider,
   FormControlLabel,
   Grid,
@@ -26,23 +27,23 @@ import {
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import RefreshOutlinedIcon from "@mui/icons-material/RefreshOutlined";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import api, { errorMessage } from "../api";
 import PageHeader from "../components/PageHeader";
 
-export default function AiAutoReplySettings() {
-  const [form, setForm] = useState({
-    IsEnabled: 1,
-    FixedReplyEnabled: 1,
-    FixedReplyText: "",
-    AIEnabled: 1,
-    CooldownMinutes: 30,
-    IgnoreGroups: 1,
-    IgnoreCommunities: 1,
-    BusinessHoursEnabled: 0,
-    BusinessStartTime: "09:00",
-    BusinessEndTime: "17:00",
-  });
+const DEFAULT_FIXED_TEXT =
+  "Hi 👋\n\nThank you for contacting me.\n\nI have received your message and will respond as soon as possible.";
 
+const DEFAULT_FORM = {
+  IsEnabled: 1,
+  FixedReplyEnabled: 1,
+  AlwaysSendFixedMessage: 1,
+  AIReplyEnabled: 1,
+  FixedReplyText: DEFAULT_FIXED_TEXT,
+};
+
+export default function AiAutoReplySettings() {
+  const [form, setForm] = useState(DEFAULT_FORM);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,11 +55,11 @@ export default function AiAutoReplySettings() {
   const fetchSettings = useCallback(async () => {
     try {
       const response = await api.get("/ai/settings");
-      if (response.data.success && response.data.data) {
+      if (response.data.success && response.data.data && response.data.data.Id) {
         setForm(response.data.data);
       }
     } catch (err) {
-      notify("error", "Failed to load AI settings: " + errorMessage(err));
+      notify("error", "Failed to load settings: " + errorMessage(err));
     }
   }, []);
 
@@ -66,11 +67,9 @@ export default function AiAutoReplySettings() {
     if (!quiet) setHistoryLoading(true);
     try {
       const response = await api.get("/ai/history");
-      if (response.data.success && response.data.data) {
-        setHistory(response.data.data);
-      }
+      if (response.data.success) setHistory(response.data.data || []);
     } catch (err) {
-      if (!quiet) notify("error", "Failed to load reply history: " + errorMessage(err));
+      if (!quiet) notify("error", "Failed to load history: " + errorMessage(err));
     } finally {
       if (!quiet) setHistoryLoading(false);
     }
@@ -85,13 +84,8 @@ export default function AiAutoReplySettings() {
     init();
   }, [fetchSettings, fetchHistory]);
 
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSwitchChange = (field, e) => {
-    handleChange(field, e.target.checked ? 1 : 0);
-  };
+  const handleSwitch = (field) => (e) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.checked ? 1 : 0 }));
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -100,20 +94,16 @@ export default function AiAutoReplySettings() {
       const response = await api.put("/ai/settings", form);
       if (response.data.success) {
         setForm(response.data.data);
-        notify("success", "AI settings saved successfully!");
+        notify("success", "Settings saved successfully!");
       }
     } catch (err) {
-      notify("error", "Failed to save settings: " + errorMessage(err));
+      notify("error", "Failed to save: " + errorMessage(err));
     } finally {
       setSaving(false);
     }
   };
 
-  const formatTime = (isoString) => {
-    if (!isoString) return "-";
-    const date = new Date(isoString);
-    return date.toLocaleString();
-  };
+  const formatTime = (iso) => (iso ? new Date(iso).toLocaleString() : "-");
 
   if (loading) {
     return (
@@ -123,19 +113,30 @@ export default function AiAutoReplySettings() {
     );
   }
 
+  // Determine the active behavior label for the info chip
+  const getBehaviorLabel = () => {
+    if (!form.IsEnabled) return { label: "Auto Reply OFF", color: "default" };
+    if (form.FixedReplyEnabled && form.AlwaysSendFixedMessage && form.AIReplyEnabled)
+      return { label: "Fixed + AI Reply", color: "success" };
+    if (form.FixedReplyEnabled && form.AlwaysSendFixedMessage && !form.AIReplyEnabled)
+      return { label: "Fixed Reply Only", color: "primary" };
+    if (!form.FixedReplyEnabled && form.AIReplyEnabled)
+      return { label: "AI Reply Only", color: "secondary" };
+    return { label: "Active", color: "success" };
+  };
+
+  const behavior = getBehaviorLabel();
+
   return (
     <>
       <PageHeader
-        title="AI Auto Reply Settings"
-        subtitle="Configure the AI Assistant to automatically respond to incoming WhatsApp messages."
+        title="AI Auto Reply"
+        subtitle="Automatically reply to incoming WhatsApp messages using a fixed message and/or AI."
         actions={
           <Button
             variant="outlined"
             startIcon={<RefreshOutlinedIcon />}
-            onClick={() => {
-              fetchSettings();
-              fetchHistory(false);
-            }}
+            onClick={() => { fetchSettings(); fetchHistory(false); }}
           >
             Refresh Data
           </Button>
@@ -143,30 +144,35 @@ export default function AiAutoReplySettings() {
       />
 
       <Grid container spacing={3}>
-        {/* Settings Configuration Column */}
-        <Grid item xs={12} lg={6}>
+        {/* ── Settings Column ── */}
+        <Grid item xs={12} lg={5}>
           <Card>
             <CardContent sx={{ p: { xs: 2.5, sm: 4 } }}>
-              <Typography variant="h6" sx={{ mb: 3 }}>
-                Configuration
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3 }}>
+                <SmartToyOutlinedIcon color="primary" />
+                <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                  Configuration
+                </Typography>
+                <Chip label={behavior.label} color={behavior.color} size="small" />
+              </Box>
+
               <Box component="form" onSubmit={handleSave}>
                 <Stack spacing={3}>
+
+                  {/* 1. Enable Auto Reply */}
                   <FormControlLabel
                     control={
                       <Switch
                         checked={form.IsEnabled === 1}
-                        onChange={(e) => handleSwitchChange("IsEnabled", e)}
+                        onChange={handleSwitch("IsEnabled")}
                         color="primary"
                       />
                     }
                     label={
                       <Box>
-                        <Typography variant="body1" fontWeight="medium">
-                          Enable Auto Reply
-                        </Typography>
+                        <Typography variant="body1" fontWeight="medium">Enable Auto Reply</Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Globally toggle the auto-reply assistant on or off.
+                          Master toggle — globally enable or disable all auto replies.
                         </Typography>
                       </Box>
                     }
@@ -174,172 +180,126 @@ export default function AiAutoReplySettings() {
 
                   <Divider />
 
+                  {/* 2. Enable Fixed Message */}
                   <FormControlLabel
                     control={
                       <Switch
                         checked={form.FixedReplyEnabled === 1}
-                        onChange={(e) => handleSwitchChange("FixedReplyEnabled", e)}
+                        onChange={handleSwitch("FixedReplyEnabled")}
                         color="primary"
+                        disabled={form.IsEnabled !== 1}
                       />
                     }
                     label={
                       <Box>
-                        <Typography variant="body1" fontWeight="medium">
-                          Enable Fixed Welcome Message
-                        </Typography>
+                        <Typography variant="body1" fontWeight="medium">Enable Fixed Message</Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Send a welcome response immediately prior to generating the AI response.
+                          Send a predefined message instantly when a message arrives.
                         </Typography>
                       </Box>
                     }
                   />
 
+                  {/* 3. Always Send Fixed Message */}
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={form.AlwaysSendFixedMessage === 1}
+                        onChange={handleSwitch("AlwaysSendFixedMessage")}
+                        color="primary"
+                        disabled={form.IsEnabled !== 1 || form.FixedReplyEnabled !== 1}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body1" fontWeight="medium">Always Send Fixed Message First</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          If enabled, fixed message is always sent before the AI reply.
+                        </Typography>
+                      </Box>
+                    }
+                  />
+
+                  {/* Fixed message textarea */}
                   {form.FixedReplyEnabled === 1 && (
                     <TextField
                       label="Fixed Reply Message"
                       multiline
-                      rows={3}
+                      rows={4}
                       value={form.FixedReplyText || ""}
-                      onChange={(e) => handleChange("FixedReplyText", e.target.value)}
+                      onChange={(e) => setForm((prev) => ({ ...prev, FixedReplyText: e.target.value }))}
                       required
                       fullWidth
+                      disabled={form.IsEnabled !== 1}
+                      placeholder={DEFAULT_FIXED_TEXT}
                     />
                   )}
 
                   <Divider />
 
+                  {/* 4. Enable AI Reply */}
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={form.AIEnabled === 1}
-                        onChange={(e) => handleSwitchChange("AIEnabled", e)}
+                        checked={form.AIReplyEnabled === 1}
+                        onChange={handleSwitch("AIReplyEnabled")}
                         color="primary"
+                        disabled={form.IsEnabled !== 1}
                       />
                     }
                     label={
                       <Box>
-                        <Typography variant="body1" fontWeight="medium">
-                          Enable AI Smart Reply
-                        </Typography>
+                        <Typography variant="body1" fontWeight="medium">Enable AI Reply</Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Generate contextual answers using Google Gemini AI.
+                          Generate a smart contextual reply using Pollinations AI (free, no API key).
+                          Sent 3 seconds after the fixed message.
                         </Typography>
                       </Box>
                     }
                   />
-
-                  <TextField
-                    label="Cooldown Period (Minutes)"
-                    type="number"
-                    value={form.CooldownMinutes}
-                    onChange={(e) => handleChange("CooldownMinutes", parseInt(e.target.value) || 0)}
-                    required
-                    fullWidth
-                    helperText="Time interval before another auto-reply can be sent to the same contact."
-                    inputProps={{ min: 0 }}
-                  />
-
-                  <Divider />
-
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Ignore Restrictions
-                  </Typography>
-
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={form.IgnoreGroups === 1}
-                          onChange={(e) => handleSwitchChange("IgnoreGroups", e)}
-                          disabled
-                          color="primary"
-                        />
-                      }
-                      label="Ignore Group Messages"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={form.IgnoreCommunities === 1}
-                          onChange={(e) => handleSwitchChange("IgnoreCommunities", e)}
-                          disabled
-                          color="primary"
-                        />
-                      }
-                      label="Ignore Communities"
-                    />
-                  </Stack>
-
-                  <Divider />
-
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={form.BusinessHoursEnabled === 1}
-                        onChange={(e) => handleSwitchChange("BusinessHoursEnabled", e)}
-                        color="primary"
-                      />
-                    }
-                    label={
-                      <Box>
-                        <Typography variant="body1" fontWeight="medium">
-                          Enable Business Hours
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Auto-reply only during specific business hours. Sends a generic offline message outside hours.
-                        </Typography>
-                      </Box>
-                    }
-                  />
-
-                  {form.BusinessHoursEnabled === 1 && (
-                    <Stack direction="row" spacing={2}>
-                      <TextField
-                        label="Start Time"
-                        type="time"
-                        value={form.BusinessStartTime}
-                        onChange={(e) => handleChange("BusinessStartTime", e.target.value)}
-                        required
-                        fullWidth
-                        InputLabelProps={{ shrink: true }}
-                      />
-                      <TextField
-                        label="End Time"
-                        type="time"
-                        value={form.BusinessEndTime}
-                        onChange={(e) => handleChange("BusinessEndTime", e.target.value)}
-                        required
-                        fullWidth
-                        InputLabelProps={{ shrink: true }}
-                      />
-                    </Stack>
-                  )}
 
                   <Box sx={{ pt: 1 }}>
                     <Button
                       type="submit"
                       variant="contained"
                       startIcon={<SaveOutlinedIcon />}
-                      disabled={saving}
+                      disabled={saving || form.IsEnabled === undefined}
                       size="large"
+                      fullWidth
                     >
-                      {saving ? "Saving Settings..." : "Save Settings"}
+                      {saving ? "Saving..." : "Save Settings"}
                     </Button>
                   </Box>
                 </Stack>
+              </Box>
+
+              {/* Behavior summary */}
+              <Box sx={{ mt: 3, p: 2, bgcolor: "action.hover", borderRadius: 2 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight="medium">
+                  CURRENT BEHAVIOR
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  {!form.IsEnabled && "❌ Auto reply is OFF. No messages will be sent."}
+                  {form.IsEnabled === 1 && form.FixedReplyEnabled === 1 && form.AlwaysSendFixedMessage === 1 && form.AIReplyEnabled === 1 &&
+                    "✅ Fixed message sent instantly → wait 3s → AI reply sent."}
+                  {form.IsEnabled === 1 && form.FixedReplyEnabled === 1 && form.AlwaysSendFixedMessage === 1 && form.AIReplyEnabled !== 1 &&
+                    "✅ Fixed message only — sent instantly."}
+                  {form.IsEnabled === 1 && form.FixedReplyEnabled !== 1 && form.AIReplyEnabled === 1 &&
+                    "✅ AI reply only — sent after 3 seconds."}
+                  {form.IsEnabled === 1 && form.FixedReplyEnabled !== 1 && form.AIReplyEnabled !== 1 &&
+                    "⚠️ Auto reply is ON but both Fixed and AI reply are disabled."}
+                </Typography>
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Live Auto Reply History Logs Column */}
-        <Grid item xs={12} lg={6}>
+        {/* ── History Column ── */}
+        <Grid item xs={12} lg={7}>
           <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
             <CardContent sx={{ p: { xs: 2.5, sm: 4 }, flexGrow: 1, display: "flex", flexDirection: "column" }}>
-              <Box sx={{ display: "flex", justifyContent: "between", alignItems: "center", mb: 3 }}>
-                <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                  Auto Reply History
-                </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
+                <Typography variant="h6" sx={{ flexGrow: 1 }}>Auto Reply History</Typography>
                 <IconButton onClick={() => fetchHistory(false)} disabled={historyLoading} size="small">
                   <RefreshOutlinedIcon />
                 </IconButton>
@@ -354,23 +314,22 @@ export default function AiAutoReplySettings() {
               {!historyLoading && history.length === 0 && (
                 <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 8, flexGrow: 1, textAlign: "center" }}>
                   <InfoOutlinedIcon sx={{ fontSize: 40, color: "text.secondary", mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    No replies have been recorded yet.
-                  </Typography>
+                  <Typography variant="body1" color="text.secondary">No replies recorded yet.</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Auto-replies will appear here as they are processed.
+                    Replies will appear here as contacts message you.
                   </Typography>
                 </Box>
               )}
 
               {!historyLoading && history.length > 0 && (
-                <TableContainer component={Paper} variant="outlined" sx={{ flexGrow: 1, maxHeight: 600 }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ flexGrow: 1, maxHeight: 560 }}>
                   <Table stickyHeader size="small">
                     <TableHead>
                       <TableRow>
                         <TableCell>Phone</TableCell>
                         <TableCell>Incoming Message</TableCell>
-                        <TableCell>AI Response</TableCell>
+                        <TableCell>Fixed Reply</TableCell>
+                        <TableCell>AI Reply</TableCell>
                         <TableCell align="right">Time</TableCell>
                       </TableRow>
                     </TableHead>
@@ -380,21 +339,14 @@ export default function AiAutoReplySettings() {
                           <TableCell sx={{ fontWeight: "medium", whiteSpace: "nowrap" }}>
                             {row.Phone}
                           </TableCell>
-                          <TableCell sx={{ maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <TableCell sx={{ maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {row.IncomingMessage}
                           </TableCell>
-                          <TableCell
-                            sx={{
-                              maxWidth: 200,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              color: row.AIResponse.startsWith("[AI") || row.AIResponse.includes("currently unavailable")
-                                ? "warning.main"
-                                : "text.primary",
-                            }}
-                          >
-                            {row.AIResponse}
+                          <TableCell sx={{ maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: row.FixedReply ? "text.primary" : "text.disabled" }}>
+                            {row.FixedReply || "—"}
+                          </TableCell>
+                          <TableCell sx={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: row.AIReply ? "success.main" : "text.disabled" }}>
+                            {row.AIReply || "—"}
                           </TableCell>
                           <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                             {formatTime(row.CreatedOn)}

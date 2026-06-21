@@ -39,14 +39,9 @@ db.serialize(() => {
       Id INTEGER PRIMARY KEY AUTOINCREMENT,
       IsEnabled INTEGER NOT NULL DEFAULT 1,
       FixedReplyEnabled INTEGER NOT NULL DEFAULT 1,
+      AlwaysSendFixedMessage INTEGER NOT NULL DEFAULT 1,
+      AIReplyEnabled INTEGER NOT NULL DEFAULT 1,
       FixedReplyText TEXT,
-      AIEnabled INTEGER NOT NULL DEFAULT 1,
-      CooldownMinutes INTEGER NOT NULL DEFAULT 30,
-      IgnoreGroups INTEGER NOT NULL DEFAULT 1,
-      IgnoreCommunities INTEGER NOT NULL DEFAULT 1,
-      BusinessHoursEnabled INTEGER NOT NULL DEFAULT 0,
-      BusinessStartTime TEXT,
-      BusinessEndTime TEXT,
       CreatedOn TEXT NOT NULL,
       UpdatedOn TEXT NOT NULL
     )
@@ -56,14 +51,16 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS AutoReplyHistory (
       Id INTEGER PRIMARY KEY AUTOINCREMENT,
       Phone TEXT NOT NULL,
+      ContactName TEXT,
       IncomingMessage TEXT,
-      AIResponse TEXT,
+      FixedReply TEXT,
+      AIReply TEXT,
       CreatedOn TEXT NOT NULL
     )
   `);
   db.run("CREATE INDEX IF NOT EXISTS IX_AutoReplyHistory_Phone ON AutoReplyHistory(Phone)");
 
-  // Check and seed default settings if empty
+  // Seed default settings if table is empty
   db.get("SELECT COUNT(*) AS count FROM AutoReplySettings", (err, row) => {
     if (err) {
       console.error("Error checking AutoReplySettings:", err.message);
@@ -71,11 +68,11 @@ db.serialize(() => {
     }
     if (row && row.count === 0) {
       const now = new Date().toISOString();
-      const defaultText = "Thank you for contacting me.\n\nI have received your message and will respond shortly.";
+      const defaultText = "Hi 👋\n\nThank you for contacting me.\n\nI have received your message and will respond as soon as possible.";
       db.run(
-        `INSERT INTO AutoReplySettings 
-         (IsEnabled, FixedReplyEnabled, FixedReplyText, AIEnabled, CooldownMinutes, IgnoreGroups, IgnoreCommunities, BusinessHoursEnabled, BusinessStartTime, BusinessEndTime, CreatedOn, UpdatedOn)
-         VALUES (1, 1, ?, 1, 30, 1, 1, 0, '09:00', '17:00', ?, ?)`,
+        `INSERT INTO AutoReplySettings
+         (IsEnabled, FixedReplyEnabled, AlwaysSendFixedMessage, AIReplyEnabled, FixedReplyText, CreatedOn, UpdatedOn)
+         VALUES (1, 1, 1, 1, ?, ?, ?)`,
         [defaultText, now, now],
         (insertErr) => {
           if (insertErr) {
